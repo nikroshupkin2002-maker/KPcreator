@@ -1,189 +1,151 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, Download, Image as ImageIcon, FileText } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Plus, Trash2, LayoutDashboard, Table as TableIcon, Image as ImageIcon } from 'lucide-react';
 
-interface TableItem {
-  name: string;
-  qty: number;
-  price: number;
-}
+export default function KPBuilder() {
+  const [data, setData] = useState({
+    number: "КП-SR-2026-001",
+    clientName: "Кафе-ресторан «Венера»",
+    clientManager: "Расиму",
+    title: "Автоматизация доставки с SR Delivery",
+    subtitle: "Экономия на комиссии агрегаторов и рост прибыли",
+    kpis: [
+      { label: "Уходит агрегаторам", value: "720 000 ₸" },
+      { label: "Доп. прибыль", value: "+660 000 ₸" }
+    ],
+    rows: [{ desc: "Подписка SR Delivery", price: 60000 }],
+    images: [] as string[]
+  });
 
-export default function KPGenerator() {
-  const [company, setCompany] = useState('');
-  const [description, setDescription] = useState('');
-  const [items, setItems] = useState<TableItem[]>([{ name: '', qty: 1, price: 0 }]);
-  const [images, setImages] = useState<string[]>([]);
-
-  // Добавление строки в таблицу
-  const addItem = () => setItems([...items, { name: '', qty: 1, price: 0 }]);
-  
-  // Удаление строки
-  const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
-  };
-
-  // Обновление данных в таблице
-  const updateItem = (index: number, field: keyof TableItem, value: any) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setItems(newItems);
-  };
-
-  // Итоговая сумма
-  const total = items.reduce((sum, item) => sum + (item.qty * item.price), 0);
-
-  // Загрузка фото
-  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      filesArray.forEach(file => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setImages(prev => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-  };
+  const updateData = (key: string, value: any) => setData({ ...data, [key]: value });
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-50">
-      {/* ЛЕВАЯ ЧАСТЬ: ВВОД ДАННЫХ */}
-      <div className="w-full md:w-1/2 p-6 bg-white border-r shadow-inner overflow-y-auto">
-        <div className="max-w-xl mx-auto">
-          <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <FileText className="text-blue-600" /> Параметры КП
-          </h2>
+    <div className="flex min-h-screen bg-slate-100">
+      {/* ПАНЕЛЬ УПРАВЛЕНИЯ (СЛЕВА) */}
+      <div className="w-[400px] bg-white border-r h-screen sticky top-0 overflow-y-auto p-6 shadow-xl z-20">
+        <div className="flex items-center gap-2 mb-8 text-green-600 font-bold text-xl">
+          <LayoutDashboard /> <span>SR Editor</span>
+        </div>
 
-          <div className="space-y-6">
-            {/* Название */}
-            <div>
-              <label className="block text-sm font-semibold mb-1 uppercase text-slate-500">Клиент / Компания</label>
-              <input 
-                type="text" 
-                placeholder="Например: Ресторан 'Freedom'"
-                className="w-full border-2 border-slate-100 rounded-lg p-3 focus:border-blue-500 outline-none transition"
-                onChange={(e) => setCompany(e.target.value)}
-              />
-            </div>
+        <div className="space-y-6">
+          <section>
+            <label className="text-xs font-bold uppercase text-gray-400">Основная информация</label>
+            <input 
+              className="w-full mt-2 p-3 bg-gray-50 border rounded-lg focus:ring-2 ring-green-500 outline-none"
+              placeholder="Название клиента"
+              value={data.clientName}
+              onChange={(e) => updateData('clientName', e.target.value)}
+            />
+            <input 
+              className="w-full mt-2 p-3 bg-gray-50 border rounded-lg focus:ring-2 ring-green-500 outline-none"
+              placeholder="Заголовок КП"
+              value={data.title}
+              onChange={(e) => updateData('title', e.target.value)}
+            />
+          </section>
 
-            {/* Описание */}
-            <div>
-              <label className="block text-sm font-semibold mb-1 uppercase text-slate-500">Суть предложения</label>
-              <textarea 
-                placeholder="Опишите основные выгоды..."
-                className="w-full border-2 border-slate-100 rounded-lg p-3 h-24 focus:border-blue-500 outline-none transition"
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            {/* Таблица */}
-            <div>
-              <label className="block text-sm font-semibold mb-2 uppercase text-slate-500">Позиции и цены</label>
-              <div className="space-y-2">
-                {items.map((item, index) => (
-                  <div key={index} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg">
-                    <input 
-                      placeholder="Товар/Услуга"
-                      className="flex-1 p-2 bg-transparent outline-none border-b border-slate-200"
-                      value={item.name}
-                      onChange={(e) => updateItem(index, 'name', e.target.value)}
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="Кол-во"
-                      className="w-16 p-2 bg-transparent outline-none border-b border-slate-200 text-center"
-                      onChange={(e) => updateItem(index, 'qty', Number(e.target.value))}
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="Цена"
-                      className="w-24 p-2 bg-transparent outline-none border-b border-slate-200 text-right"
-                      onChange={(e) => updateItem(index, 'price', Number(e.target.value))}
-                    />
-                    <button onClick={() => removeItem(index)} className="text-red-400 hover:text-red-600">
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                ))}
-                <button onClick={addItem} className="w-full py-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 hover:bg-slate-50 flex justify-center items-center gap-2">
-                  <Plus size={18} /> Добавить строку
-                </button>
+          <section>
+            <label className="text-xs font-bold uppercase text-gray-400">KPI Карточки</label>
+            {data.kpis.map((kpi, i) => (
+              <div key={i} className="flex gap-2 mt-2">
+                <input 
+                  className="w-1/2 p-2 text-sm border rounded" 
+                  value={kpi.label} 
+                  onChange={(e) => {
+                    const newKpis = [...data.kpis];
+                    newKpis[i].label = e.target.value;
+                    updateData('kpis', newKpis);
+                  }}
+                />
+                <input 
+                  className="w-1/2 p-2 text-sm border rounded font-bold" 
+                  value={kpi.value}
+                  onChange={(e) => {
+                    const newKpis = [...data.kpis];
+                    newKpis[i].value = e.target.value;
+                    updateData('kpis', newKpis);
+                  }}
+                />
               </div>
-            </div>
+            ))}
+          </section>
 
-            {/* Загрузка фото */}
-            <div>
-              <label className="block text-sm font-semibold mb-2 uppercase text-slate-500">Фотоматериалы</label>
-              <div className="grid grid-cols-4 gap-2">
-                {images.map((img, i) => (
-                  <img key={i} src={img} className="w-full h-20 object-cover rounded-md border" />
-                ))}
-                <label className="h-20 border-2 border-dashed border-blue-200 rounded-md flex items-center justify-center cursor-pointer hover:bg-blue-50">
-                  <ImageIcon className="text-blue-400" />
-                  <input type="file" hidden multiple onChange={handlePhoto} />
-                </label>
-              </div>
-            </div>
-          </div>
+          <button className="w-full bg-green-600 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition shadow-lg mt-10">
+            <Download size={20} /> СКАЧАТЬ В PDF
+          </button>
         </div>
       </div>
 
-      {/* ПРАВАЯ ЧАСТЬ: ПРЕДПРОСМОТР (Preview) */}
-      <div className="w-full md:w-1/2 p-6 flex justify-center items-start overflow-y-auto pt-10">
-        <div id="kp-document" className="w-full max-w-[600px] min-h-[840px] bg-white shadow-2xl p-12 relative overflow-hidden">
-          {/* Декор */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600 -mr-16 -mt-16 rotate-45"></div>
-          
-          <div className="mb-12">
-             <div className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-1">Commercial Proposal</div>
-             <h1 className="text-4xl font-black text-slate-900 leading-tight uppercase">
-                {company || "НАЗВАНИЕ КЛИЕНТА"}
-             </h1>
-          </div>
-
-          <div className="text-slate-600 mb-10 leading-relaxed border-l-4 border-blue-600 pl-4 italic">
-            {description || "Здесь будет текст вашего коммерческого предложения, сформированный автоматически из ячеек слева."}
-          </div>
-
-          {/* Таблица в предпросмотре */}
-          <table className="w-full mb-10">
-            <thead>
-              <tr className="border-b-2 border-slate-900 text-left text-xs uppercase font-bold text-slate-400">
-                <th className="py-2">Наименование</th>
-                <th className="py-2 text-center">Кол-во</th>
-                <th className="py-2 text-right">Цена</th>
-                <th className="py-2 text-right">Итого</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm">
-              {items.map((item, i) => (
-                <tr key={i} className="border-b border-slate-100">
-                  <td className="py-3 font-medium">{item.name || "..."}</td>
-                  <td className="py-3 text-center">{item.qty}</td>
-                  <td className="py-3 text-right">{item.price.toLocaleString()} ₽</td>
-                  <td className="py-3 text-right font-bold">{(item.qty * item.price).toLocaleString()} ₽</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="flex justify-end mb-10">
-            <div className="bg-slate-900 text-white p-4 rounded-lg text-right min-w-[200px]">
-              <div className="text-xs uppercase opacity-60">Итого к оплате</div>
-              <div className="text-2xl font-bold">{total.toLocaleString()} ₽</div>
+      {/* ПРЕДПРОСМОТР (СПРАВА) */}
+      <div className="flex-1 p-10 overflow-y-auto flex justify-center">
+        <div className="a4-page shadow-2xl scale-90 origin-top">
+          {/* HEADER по твоему шаблону */}
+          <div className="flex justify-between items-start border-b-[3px] border-[#34A853] pb-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-[#34A853] rounded-lg flex items-center justify-center text-white text-2xl font-black">SR</div>
+              <div>
+                <div className="font-bold text-lg leading-tight text-gray-800 uppercase tracking-tighter">Smart Restaurant</div>
+                <div className="text-[10px] text-gray-500 uppercase">Решения для автоматизации</div>
+              </div>
+            </div>
+            <div className="text-right text-[10px] text-gray-400 leading-relaxed">
+              <strong>Коммерческое предложение</strong><br />
+              № {data.number}<br />
+              Дата: 13.05.2026
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {images.slice(0, 4).map((img, i) => (
-              <img key={i} src={img} className="rounded-lg shadow-sm w-full h-40 object-cover" />
+          {/* TITLE SECTION */}
+          <h1 className="text-[26pt] font-black leading-tight text-gray-900 mb-2">{data.title}</h1>
+          <p className="text-[#5d5d5d] text-[11pt] mb-8">{data.subtitle}</p>
+
+          <div className="text-[10.5pt] mb-8">
+             <strong>Кому:</strong> {data.clientManager}, директору {data.clientName}<br />
+             <strong>От:</strong> Smart Restaurant (Freedom Корпорация)
+          </div>
+
+          {/* KPI BLOCKS */}
+          <div className="flex gap-4 mb-8">
+            {data.kpis.map((kpi, i) => (
+              <div key={i} className="flex-1 bg-[#E8F5EC] border border-[#C8E6CF] rounded-xl p-4 text-center">
+                <div className="text-2xl font-black text-[#1F6F3A]">{kpi.value}</div>
+                <div className="text-[8pt] uppercase text-[#5d5d5d] mt-1 font-semibold">{kpi.label}</div>
+              </div>
             ))}
           </div>
 
-          <div className="mt-12 pt-6 border-t border-slate-100 text-[10px] text-slate-400 flex justify-between uppercase tracking-tighter">
-            <span>Сформировано автоматически в системе КП</span>
-            <span>2026</span>
+          {/* SUMMARY BLOCK */}
+          <div className="bg-[#E8F5EC] border-l-4 border-[#34A853] p-4 rounded-r-lg mb-8 text-[11pt] italic text-gray-700">
+            {data.clientManager}, использование системы позволит оптимизировать процессы и увеличить чистую прибыль вашего заведения.
+          </div>
+
+          <h2 className="text-[12pt] font-bold text-[#1F6F3A] border-l-4 border-[#34A853] pl-3 mb-4 uppercase tracking-tight">Экономика решения</h2>
+          
+          <table className="w-full border-collapse mb-8 text-[10pt]">
+            <thead>
+              <tr className="bg-[#E8F5EC] text-[#1F6F3A]">
+                <th className="border p-2 text-left">Наименование услуги</th>
+                <th className="border p-2 text-right">Стоимость</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row, i) => (
+                <tr key={i}>
+                  <td className="border p-2 font-medium">{row.desc}</td>
+                  <td className="border p-2 text-right font-bold">{row.price.toLocaleString()} ₸</td>
+                </tr>
+              ))}
+              <tr className="bg-gray-900 text-white font-bold">
+                <td className="border p-2">ИТОГО К ОПЛАТЕ</td>
+                <td className="border p-2 text-right">60 000 ₸</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* FOOTER */}
+          <div className="mt-auto pt-10 border-t border-gray-100 flex justify-between text-[8pt] text-gray-400">
+            <div>Smart Restaurant · Freedom Корпорация</div>
+            <div>{data.number}</div>
           </div>
         </div>
       </div>
