@@ -3,22 +3,27 @@
 @tailwind utilities;
 
 :root {
-  --sr-green: #34A853;
-  --sr-green-dark: #1F6F3A;
-  --sr-green-bg: #E8F5EC;
+  --primary: #114232; /* Глубокий зеленый */
+  --accent: #87A922;  /* Светло-зеленый акцент */
+  --bg: #F7F8F3;
 }
 
 body {
-  background-color: #f0f2f5;
-  color: #1a1a1a;
+  background-color: var(--bg);
+  color: #1A1A1A;
 }
 
-/* Стили для имитации листа А4 в предпросмотре */
-.a4-page {
+.a4-canvas {
   width: 210mm;
-  min-height: 297mm;
-  padding: 15mm;
-  margin: 0 auto;
+  height: 297mm;
   background: white;
-  box-shadow: 0 0 20px rgba(0,0,0,0.1);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 40px;
+}
+
+/* Скрытие элементов управления при печати */
+@media print {
+  .no-print { display: none !important; }
 }
