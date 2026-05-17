@@ -6,8 +6,7 @@ import type { KPData } from '../types/kp';
 import { useKPStore, createNewKP } from '../store/kpStore';
 import { EditorPanel } from '../components/editor/EditorPanel';
 import { PreviewPanel } from '../components/preview/PreviewPanel';
-import { KPPrintTemplate } from '../components/print/KPPrintTemplate';
-import { A4_WIDTH, A4_HEIGHT, getTotalPages } from '../utils/layoutUtils';
+import { A4_WIDTH, getTotalPages } from '../utils/layoutUtils';
 
 export function CreateKPPage() {
   const { id } = useParams<{ id: string }>();
@@ -349,8 +348,7 @@ export function CreateKPPage() {
         </div>
       </div>
 
-      {/* Скрытый шаблон для экспорта PDF — не виден пользователю */}
-      <KPPrintTemplate kp={kp} />
+      
 
     </div>
   );
