@@ -6,6 +6,7 @@ import type { KPData } from '../types/kp';
 import { useKPStore, createNewKP } from '../store/kpStore';
 import { EditorPanel } from '../components/editor/EditorPanel';
 import { PreviewPanel } from '../components/preview/PreviewPanel';
+import { KPPrintTemplate } from '../components/print/KPPrintTemplate';
 import { A4_WIDTH, A4_HEIGHT, getTotalPages } from '../utils/layoutUtils';
 
 export function CreateKPPage() {
@@ -62,6 +63,23 @@ export function CreateKPPage() {
       const { default: html2canvas } = await import('html2canvas');
       const { default: jsPDF } = await import('jspdf');
 
+      // Даём браузеру время отрендерить скрытый шаблон
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      const printRoot = document.getElementById('kp-print-root');
+      if (!printRoot) {
+        toast.error('Шаблон для печати не найден');
+        setIsExporting(false);
+        return;
+      }
+
+      const pages = printRoot.querySelectorAll<HTMLElement>('[data-print-page]');
+      if (pages.length === 0) {
+        toast.error('Нет страниц для экспорта');
+        setIsExporting(false);
+        return;
+      }
+
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'px',
@@ -69,44 +87,8 @@ export function CreateKPPage() {
         compress: true,
       });
 
-      const totalPages = getTotalPages(kp);
-
-      for (let i = 0; i < totalPages; i++) {
-        const offscreen = document.createElement('div');
-        offscreen.style.cssText = `
-          position: fixed;
-          top: 0;
-          left: -9999px;
-          width: ${A4_WIDTH}px;
-          height: ${A4_HEIGHT}px;
-          background: white;
-          z-index: -1;
-          overflow: hidden;
-        `;
-        document.body.appendChild(offscreen);
-
-        const pages = previewRef.current?.querySelectorAll<HTMLElement>('[data-a4-page]');
-        if (!pages || pages.length === 0) {
-          document.body.removeChild(offscreen);
-          toast.error('Нет страниц для экспорта');
-          setIsExporting(false);
-          return;
-        }
-
-        const originalPage = pages[i];
-        const clone = originalPage.cloneNode(true) as HTMLElement;
-
-        clone.style.transform = 'none';
-        clone.style.marginBottom = '0';
-        clone.style.width = `${A4_WIDTH}px`;
-        clone.style.height = `${A4_HEIGHT}px`;
-        clone.style.position = 'absolute';
-        clone.style.top = '0';
-        clone.style.left = '0';
-
-        offscreen.appendChild(clone);
-
-        const canvas = await html2canvas(offscreen, {
+      for (let i = 0; i < pages.length; i++) {
+        const canvas = await html2canvas(pages[i], {
           scale: 2,
           useCORS: true,
           allowTaint: true,
@@ -118,8 +100,6 @@ export function CreateKPPage() {
           backgroundColor: '#ffffff',
         });
 
-        document.body.removeChild(offscreen);
-
         if (i > 0) pdf.addPage();
         const imgData = canvas.toDataURL('image/jpeg', 0.95);
         pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH, A4_HEIGHT);
@@ -129,7 +109,7 @@ export function CreateKPPage() {
       pdf.save(fileName);
       toast.success('PDF сохранён');
     } catch (err) {
-      console.error(err);
+      console.error('PDF export error:', err);
       toast.error('Ошибка экспорта PDF');
     } finally {
       setIsExporting(false);
@@ -139,13 +119,14 @@ export function CreateKPPage() {
   if (!kp) {
     return (
       <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080D1C' }}>
-        <Loader2 size={32} style={{ color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
+        <Loader2 size={32} style={{ color: '#16a34a', animation: 'spin 1s linear infinite' }} />
       </div>
     );
   }
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: '#080D1C', overflow: 'hidden' }}>
+
       {/* Top bar */}
       <div style={{
         height: 56,
@@ -154,7 +135,7 @@ export function CreateKPPage() {
         gap: 12,
         padding: '0 16px',
         background: 'rgba(13,21,37,0.95)',
-        borderBottom: '1px solid rgba(201,168,76,0.12)',
+        borderBottom: '1px solid rgba(22,163,74,0.15)',
         flexShrink: 0,
         backdropFilter: 'blur(12px)',
       }}>
@@ -178,10 +159,10 @@ export function CreateKPPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
             width: 24, height: 24, borderRadius: 6,
-            background: 'linear-gradient(135deg, #C9A84C, #F0C85A)',
+            background: 'linear-gradient(135deg, #16a34a, #4ade80)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <FileText size={13} color="#080D1C" />
+            <FileText size={13} color="#ffffff" />
           </div>
           <input
             value={kp.name}
@@ -196,15 +177,16 @@ export function CreateKPPage() {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+
           <div style={{
             padding: '4px 10px',
-            background: 'rgba(201,168,76,0.1)',
-            border: '1px solid rgba(201,168,76,0.2)',
+            background: 'rgba(22,163,74,0.1)',
+            border: '1px solid rgba(22,163,74,0.2)',
             borderRadius: 8,
-            color: '#C9A84C',
+            color: '#16a34a',
             fontSize: 12,
           }}>
-            {kp.slides.length + 2} стр.
+            {getTotalPages(kp)} стр.
           </div>
 
           <button
@@ -222,7 +204,9 @@ export function CreateKPPage() {
               transition: 'all 0.15s',
             }}
           >
-            {isSaving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />}
+            {isSaving
+              ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <Save size={14} />}
             Сохранить
           </button>
 
@@ -232,17 +216,19 @@ export function CreateKPPage() {
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '7px 16px',
-              background: 'linear-gradient(135deg, #C9A84C, #F0C85A)',
+              background: 'linear-gradient(135deg, #16a34a, #4ade80)',
               border: 'none',
               borderRadius: 8,
-              color: '#080D1C',
+              color: '#ffffff',
               cursor: 'pointer',
               fontSize: 13,
               fontWeight: 600,
               transition: 'all 0.15s',
             }}
           >
-            {isExporting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={14} />}
+            {isExporting
+              ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+              : <Download size={14} />}
             Экспорт PDF
           </button>
         </div>
@@ -250,13 +236,14 @@ export function CreateKPPage() {
 
       {/* Main split layout */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
         {/* Left: Editor */}
         <div style={{
           width: '42%',
           minWidth: 340,
           maxWidth: 520,
           flexShrink: 0,
-          borderRight: '1px solid rgba(201,168,76,0.1)',
+          borderRight: '1px solid rgba(22,163,74,0.1)',
           background: 'rgba(13,21,37,0.6)',
           overflow: 'hidden',
           display: 'flex',
@@ -300,10 +287,14 @@ export function CreateKPPage() {
             </span>
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <PreviewPanel kp={kp} onChange={handleChange} previewRef={previewRef} />
+            <PreviewPanel kp={kp} previewRef={previewRef} />
           </div>
         </div>
       </div>
+
+      {/* Скрытый шаблон для экспорта PDF — не виден пользователю */}
+      <KPPrintTemplate kp={kp} />
+
     </div>
   );
 }
