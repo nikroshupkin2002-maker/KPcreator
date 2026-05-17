@@ -6,7 +6,11 @@ const STORAGE_KEY = 'kp_proposals';
 function loadFromStorage(): KPData[] {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    const parsed = data ? JSON.parse(data) : [];
+    return parsed.map((kp: KPData) => ({
+      ...kp,
+      elementStyles: kp.elementStyles ?? {},
+    }));
   } catch {
     return [];
   }
@@ -78,6 +82,7 @@ export function createNewKP(name?: string): KPData {
       photoDataUrl: null,
     },
     freedomPhotoDataUrl: null,
+    elementStyles: {},
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
