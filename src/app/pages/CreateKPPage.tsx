@@ -56,65 +56,225 @@ export function CreateKPPage() {
   }
 
   async function handleExportPDF() {
-    if (!kp) return;
-    setIsExporting(true);
+  if (!kp) return;
+  setIsExporting(true);
 
-    try {
-      const { default: html2canvas } = await import('html2canvas');
-      const { default: jsPDF } = await import('jspdf');
+  try {
+    const { default: html2canvas } = await import('html2canvas');
+    const { default: jsPDF } = await import('jspdf');
 
-      // Даём браузеру время отрендерить скрытый шаблон
-      await new Promise(resolve => setTimeout(resolve, 300));
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'px',
+      format: [A4_WIDTH, A4_HEIGHT],
+      compress: true,
+    });
 
-      const printRoot = document.getElementById('kp-print-root');
-      if (!printRoot) {
-        toast.error('Шаблон для печати не найден');
-        setIsExporting(false);
-        return;
+    const totalPages = getTotalPages(kp);
+    const elementStyles = kp.elementStyles ?? {};
+    const { generatePreviewElements } = await import('../utils/layoutUtils');
+    const elements = generatePreviewElements(kp, elementStyles);
+
+    for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
+      const pageElements = elements.filter(e => e.pageIndex === pageIndex);
+      const isTitle = pageIndex === 0;
+      const isCalc = pageIndex === totalPages - 1;
+
+      // Создаём контейнер страницы прямо в body, но вне экрана
+      const container = document.createElement('div');
+      container.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: ${A4_WIDTH}px;
+        height: ${A4_HEIGHT}px;
+        overflow: hidden;
+        background: #ffffff;
+        pointer-events: none;
+        z-index: -9999;
+        visibility: hidden;
+      `;
+
+      // Фон страницы
+      const bg = document.createElement('div');
+      bg.style.cssText = `position:absolute;inset:0;`;
+      if (isTitle) {
+        bg.style.background = 'linear-gradient(160deg, #0a2e1a 0%, #14532d 40%, #0a2e1a 100%)';
+      } else if (isCalc) {
+        bg.style.background = 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)';
+      } else {
+        bg.style.background = '#ffffff';
+      }
+      container.appendChild(bg);
+
+      // Зелёная линия на титуле
+      if (isTitle) {
+        const line = document.createElement('div');
+        line.style.cssText = `
+          position:absolute; left:48px; top:72px;
+          width:60px; height:4px;
+          background: linear-gradient(90deg, #16a34a, #4ade80);
+          border-radius:2px;
+        `;
+        container.appendChild(line);
       }
 
-      const pages = printRoot.querySelectorAll<HTMLElement>('[data-print-page]');
-      if (pages.length === 0) {
-        toast.error('Нет страниц для экспорта');
-        setIsExporting(false);
-        return;
+      // Зелёная полоса слева на слайдах
+      if (!isTitle && !isCalc) {
+        const bar = document.createElement('div');
+        bar.style.cssText = `
+          position:absolute; left:0; top:0;
+          width:6px; height:100%;
+          background: linear-gradient(180deg, #16a34a 0%, #4ade80 50%, #16a34a 100%);
+        `;
+        container.appendChild(bar);
       }
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'px',
-        format: [A4_WIDTH, A4_HEIGHT],
-        compress: true,
+      // Номер страницы
+      const pageNum = document.createElement('div');
+      pageNum.style.cssText = `
+        position:absolute; bottom:14px; right:20px;
+        font-size:10px; font-family:Inter,sans-serif;
+        color:${isTitle ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'};
+      `;
+      pageNum.textContent = String(pageIndex + 1);
+      container.appendChild(pageNum);
+
+      // Элементы страницы
+      const imgPromises: Promise<void>[] = [];
+
+      for (const element of pageElements) {
+        const { bounds, style } = element;
+        const el = document.createElement('div');
+        el.style.cssText = `
+          position:absolute;
+          left:${bounds.x}px;
+          top:${bounds.y}px;
+          width:${bounds.width}px;
+          height:${bounds.height}px;
+          overflow:hidden;
+          box-sizing:border-box;
+        `;
+
+        if (element.type === 'image' && element.imageUrl) {
+          const img = document.createElement('img');
+          img.src = element.imageUrl;
+          img.style.cssText = `
+            width:100%; height:100%;
+            object-fit:contain; display:block; border-radius:4px;
+          `;
+          // Ждём загрузки картинки
+          const p = new Promise<void>((resolve) => {
+            if (img.complete) {
+              resolve();
+            } else {
+              img.onload = () => resolve();
+              img.onerror = () => resolve(); // не блокируем если ошибка
+            }
+          });
+          imgPromises.push(p);
+          el.appendChild(img);
+
+        } else if (element.type === 'table' && element.tableData) {
+          const { headers, cells, numColumns, numRows } = element.tableData;
+          const table = document.createElement('table');
+          table.style.cssText = `
+            width:100%; border-collapse:collapse;
+            font-size:${style.fontSize}px;
+            font-family:${style.fontFamily},sans-serif;
+          `;
+          const thead = document.createElement('thead');
+          const headerRow = document.createElement('tr');
+          headers.forEach((h) => {
+            const th = document.createElement('th');
+            th.style.cssText = `
+              padding:8px 10px; text-align:left;
+              width:${100 / numColumns}%;
+              background:#14532d; color:#ffffff;
+              font-weight:700;
+              border:1px solid rgba(22,163,74,0.4);
+              font-size:${style.fontSize}px;
+            `;
+            th.textContent = h || '';
+            headerRow.appendChild(th);
+          });
+          thead.appendChild(headerRow);
+          table.appendChild(thead);
+
+          const tbody = document.createElement('tbody');
+          for (let ri = 0; ri < numRows; ri++) {
+            const row = document.createElement('tr');
+            row.style.background = ri % 2 === 0 ? '#ffffff' : '#f0fdf4';
+            for (let ci = 0; ci < numColumns; ci++) {
+              const td = document.createElement('td');
+              td.style.cssText = `
+                padding:7px 10px;
+                border:1px solid rgba(0,0,0,0.1);
+                color:#1e293b;
+                font-size:${style.fontSize}px;
+              `;
+              td.textContent = cells[ri]?.[ci] || '';
+              row.appendChild(td);
+            }
+            tbody.appendChild(row);
+          }
+          table.appendChild(tbody);
+          el.appendChild(table);
+
+        } else {
+          // Текст
+          el.style.fontSize = `${style.fontSize}px`;
+          el.style.fontWeight = String(style.fontWeight);
+          el.style.fontFamily = `${style.fontFamily}, sans-serif`;
+          el.style.color = isTitle ? '#ffffff' : '#1e293b';
+          el.style.lineHeight = '1.5';
+          el.style.wordBreak = 'break-word';
+          el.textContent = element.content;
+        }
+
+        container.appendChild(el);
+      }
+
+      document.body.appendChild(container);
+
+      // Ждём загрузки всех картинок на странице
+      await Promise.all(imgPromises);
+
+      // Делаем видимым только на момент снятия скриншота
+      container.style.visibility = 'visible';
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        width: A4_WIDTH,
+        height: A4_HEIGHT,
+        windowWidth: A4_WIDTH,
+        windowHeight: A4_HEIGHT,
+        logging: false,
+        backgroundColor: '#ffffff',
+        x: 0,
+        y: 0,
       });
 
-      for (let i = 0; i < pages.length; i++) {
-        const canvas = await html2canvas(pages[i], {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          width: A4_WIDTH,
-          height: A4_HEIGHT,
-          windowWidth: A4_WIDTH,
-          windowHeight: A4_HEIGHT,
-          logging: false,
-          backgroundColor: '#ffffff',
-        });
+      document.body.removeChild(container);
 
-        if (i > 0) pdf.addPage();
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-        pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH, A4_HEIGHT);
-      }
-
-      const fileName = `${kp.name || 'КП'}_${new Date().toLocaleDateString('ru-RU').replace(/\./g, '-')}.pdf`;
-      pdf.save(fileName);
-      toast.success('PDF сохранён');
-    } catch (err) {
-      console.error('PDF export error:', err);
-      toast.error('Ошибка экспорта PDF');
-    } finally {
-      setIsExporting(false);
+      if (pageIndex > 0) pdf.addPage();
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH, A4_HEIGHT);
     }
+
+    const fileName = `${kp.name || 'КП'}_${new Date().toLocaleDateString('ru-RU').replace(/\./g, '-')}.pdf`;
+    pdf.save(fileName);
+    toast.success('PDF сохранён');
+
+  } catch (err) {
+    console.error('PDF export error:', err);
+    toast.error('Ошибка экспорта PDF');
+  } finally {
+    setIsExporting(false);
   }
+}
 
   if (!kp) {
     return (
