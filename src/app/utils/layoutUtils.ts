@@ -1,4 +1,4 @@
-import type { KPData, PreviewElement, ElementBounds, TextStyle } from '../types/kp';
+import type { KPData, PreviewElement, ElementBounds, TextStyle, SavedElementState } from '../types/kp';
 
 export const A4_WIDTH = 794;
 export const A4_HEIGHT = 1122;
@@ -8,8 +8,6 @@ const CONTENT_WIDTH = A4_WIDTH - PADDING * 2;
 function defaultStyle(fontSize = 16, fontWeight: TextStyle['fontWeight'] = 'normal'): TextStyle {
   return { fontSize, fontWeight, fontFamily: 'Inter' };
 }
-
-export type SavedElementState = { bounds: ElementBounds; style: TextStyle };
 
 export function generatePreviewElements(
   kp: KPData,
@@ -48,9 +46,15 @@ export function generatePreviewElements(
   );
 
   if (kp.titlePhotoDataUrl) {
+    const photo = kp.slides[0]?.photos[0];
+    const nw = photo?.naturalWidth ?? CONTENT_WIDTH;
+    const nh = photo?.naturalHeight ?? 500;
+    const ratio = Math.min(CONTENT_WIDTH / nw, 500 / nh, 1);
+    const w = Math.round(nw * ratio);
+    const h = Math.round(nh * ratio);
     elements.push(
       el('title-photo', 0, 'image',
-        { x: PADDING, y: 240, width: CONTENT_WIDTH, height: 500 },
+        { x: PADDING, y: 240, width: w, height: h },
         '',
         defaultStyle(16),
         { imageUrl: kp.titlePhotoDataUrl }
@@ -86,17 +90,25 @@ export function generatePreviewElements(
     });
 
     slide.photos.forEach((photo, pi) => {
-      const w = pi === 0 ? CONTENT_WIDTH : CONTENT_WIDTH / 2 - 8;
+      // Используем натуральный размер фото, ограничивая максимум страницей
+      const nw = photo.naturalWidth ?? CONTENT_WIDTH;
+      const nh = photo.naturalHeight ?? 280;
+      const maxW = pi === 0 ? CONTENT_WIDTH : CONTENT_WIDTH / 2 - 8;
+      const maxH = A4_HEIGHT - yOffset - 40;
+      const ratio = Math.min(maxW / nw, maxH / nh, 1);
+      const w = Math.round(nw * ratio);
+      const h = Math.round(nh * ratio);
       const x = pi > 0 && pi % 2 === 1 ? PADDING + CONTENT_WIDTH / 2 + 8 : PADDING;
+
       elements.push(
         el(`slide-${si}-photo-${pi}`, pageIndex, 'image',
-          { x, y: yOffset, width: w, height: 280 },
+          { x, y: yOffset, width: w, height: h },
           '',
           defaultStyle(16),
           { imageUrl: photo.dataUrl }
         )
       );
-      if (pi === 0 || pi % 2 === 1) yOffset += 292;
+      if (pi === 0 || pi % 2 === 1) yOffset += h + 12;
     });
   });
 
@@ -184,5 +196,5 @@ export function generatePreviewElements(
 }
 
 export function getTotalPages(kp: KPData): number {
-  return kp.slides.length + 2; // title + slides + calc
+  return kp.slides.length + 2;
 }
