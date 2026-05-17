@@ -6,7 +6,7 @@ import type { KPData } from '../types/kp';
 import { useKPStore, createNewKP } from '../store/kpStore';
 import { EditorPanel } from '../components/editor/EditorPanel';
 import { PreviewPanel } from '../components/preview/PreviewPanel';
-import { A4_WIDTH, A4_HEIGHT } from '../utils/layoutUtils';
+import { A4_WIDTH, A4_HEIGHT, getTotalPages } from '../utils/layoutUtils';
 
 export function CreateKPPage() {
   const { id } = useParams<{ id: string }>();
@@ -55,20 +55,12 @@ export function CreateKPPage() {
   }
 
   async function handleExportPDF() {
-    if (!kp || !previewRef.current) return;
+    if (!kp) return;
     setIsExporting(true);
 
     try {
       const { default: html2canvas } = await import('html2canvas');
       const { default: jsPDF } = await import('jspdf');
-
-      const pages = previewRef.current.querySelectorAll<HTMLElement>('[data-a4-page]');
-
-      if (pages.length === 0) {
-        toast.error('Нет страниц для экспорта');
-        setIsExporting(false);
-        return;
-      }
 
       const pdf = new jsPDF({
         orientation: 'portrait',
@@ -77,27 +69,59 @@ export function CreateKPPage() {
         compress: true,
       });
 
-      for (let i = 0; i < pages.length; i++) {
-        const page = pages[i];
-        const originalTransform = page.style.transform;
-        const originalMargin = page.style.marginBottom;
-        page.style.transform = 'scale(1)';
-        page.style.marginBottom = '0';
+      const totalPages = getTotalPages(kp);
 
-        const canvas = await html2canvas(page, {
+      for (let i = 0; i < totalPages; i++) {
+        const offscreen = document.createElement('div');
+        offscreen.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: -9999px;
+          width: ${A4_WIDTH}px;
+          height: ${A4_HEIGHT}px;
+          background: white;
+          z-index: -1;
+          overflow: hidden;
+        `;
+        document.body.appendChild(offscreen);
+
+        const pages = previewRef.current?.querySelectorAll<HTMLElement>('[data-a4-page]');
+        if (!pages || pages.length === 0) {
+          document.body.removeChild(offscreen);
+          toast.error('Нет страниц для экспорта');
+          setIsExporting(false);
+          return;
+        }
+
+        const originalPage = pages[i];
+        const clone = originalPage.cloneNode(true) as HTMLElement;
+
+        clone.style.transform = 'none';
+        clone.style.marginBottom = '0';
+        clone.style.width = `${A4_WIDTH}px`;
+        clone.style.height = `${A4_HEIGHT}px`;
+        clone.style.position = 'absolute';
+        clone.style.top = '0';
+        clone.style.left = '0';
+
+        offscreen.appendChild(clone);
+
+        const canvas = await html2canvas(offscreen, {
           scale: 2,
           useCORS: true,
           allowTaint: true,
           width: A4_WIDTH,
           height: A4_HEIGHT,
+          windowWidth: A4_WIDTH,
+          windowHeight: A4_HEIGHT,
           logging: false,
+          backgroundColor: '#ffffff',
         });
 
-        page.style.transform = originalTransform;
-        page.style.marginBottom = originalMargin;
+        document.body.removeChild(offscreen);
 
         if (i > 0) pdf.addPage();
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
         pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH, A4_HEIGHT);
       }
 
@@ -172,7 +196,6 @@ export function CreateKPPage() {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Page count */}
           <div style={{
             padding: '4px 10px',
             background: 'rgba(201,168,76,0.1)',
@@ -239,7 +262,6 @@ export function CreateKPPage() {
           display: 'flex',
           flexDirection: 'column',
         }}>
-          {/* Editor header */}
           <div style={{
             padding: '12px 20px',
             borderBottom: '1px solid rgba(255,255,255,0.05)',
@@ -258,7 +280,6 @@ export function CreateKPPage() {
 
         {/* Right: Preview */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {/* Preview header */}
           <div style={{
             padding: '12px 20px',
             borderBottom: '1px solid rgba(255,255,255,0.05)',
