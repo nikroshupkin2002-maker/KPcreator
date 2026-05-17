@@ -16,6 +16,8 @@ export interface SlideInfoItem {
 export interface SlidePhoto {
   id: string;
   dataUrl: string;
+  naturalWidth?: number;
+  naturalHeight?: number;
 }
 
 export interface Slide {
@@ -40,24 +42,16 @@ export interface Employee {
   photoDataUrl: string | null;
 }
 
-export interface KPData {
-  id: string;
-  name: string;
-  companyName: string;
-  titlePhotoDataUrl: string | null;
-  slides: Slide[];
-  calculationTable: CalculationTable;
-  employee: Employee;
-  freedomPhotoDataUrl: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface ElementBounds {
   x: number;
   y: number;
   width: number;
   height: number;
+}
+
+export interface SavedElementState {
+  bounds: ElementBounds;
+  style: TextStyle;
 }
 
 export interface PreviewElement {
@@ -74,4 +68,18 @@ export interface PreviewElement {
     numRows: number;
   };
   style: TextStyle;
+}
+
+export interface KPData {
+  id: string;
+  name: string;
+  companyName: string;
+  titlePhotoDataUrl: string | null;
+  slides: Slide[];
+  calculationTable: CalculationTable;
+  employee: Employee;
+  freedomPhotoDataUrl: string | null;
+  elementStyles: Record<string, SavedElementState>;
+  createdAt: string;
+  updatedAt: string;
 }
