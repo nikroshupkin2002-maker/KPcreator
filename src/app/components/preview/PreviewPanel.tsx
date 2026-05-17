@@ -1,22 +1,23 @@
 import { useRef, useState, useEffect, useCallback, useMemo, type RefObject } from 'react';
-import type { KPData, PreviewElement, ElementBounds, TextStyle, SavedElementState } from '../../types/kp';
+import type { KPData, PreviewElement, ElementBounds, TextStyle } from '../../types/kp';
 import { generatePreviewElements, A4_WIDTH, A4_HEIGHT, getTotalPages } from '../../utils/layoutUtils';
 import { DraggableElement } from './DraggableElement';
 import { FormattingToolbar } from './FormattingToolbar';
 
 interface Props {
   kp: KPData;
-  onChange: (updated: KPData) => void;
   previewRef: RefObject<HTMLDivElement | null>;
 }
 
 const PAGE_GAP = 24;
 
-export function PreviewPanel({ kp, onChange, previewRef }: Props) {
+export function PreviewPanel({ kp, previewRef }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.7);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [elementStyles, setElementStyles] = useState<Record<string, { bounds: ElementBounds; style: TextStyle }>>({});
 
+  // Compute scale based on container width
   useEffect(() => {
     const obs = new ResizeObserver(entries => {
       const w = entries[0]?.contentRect.width ?? 600;
@@ -26,8 +27,7 @@ export function PreviewPanel({ kp, onChange, previewRef }: Props) {
     return () => obs.disconnect();
   }, []);
 
-  const elementStyles = kp.elementStyles ?? {};
-
+  // Generate elements from KP data + saved positions
   const elements = useMemo(() => {
     return generatePreviewElements(kp, elementStyles);
   }, [kp, elementStyles]);
@@ -35,38 +35,38 @@ export function PreviewPanel({ kp, onChange, previewRef }: Props) {
   const totalPages = getTotalPages(kp);
 
   const handleBoundsChange = useCallback((id: string, bounds: ElementBounds) => {
-    const current = elementStyles[id];
-    const el = elements.find(e => e.id === id);
-    const newStyles: Record<string, SavedElementState> = {
-      ...elementStyles,
-      [id]: { bounds, style: current?.style ?? el!.style },
-    };
-    onChange({ ...kp, elementStyles: newStyles });
-  }, [kp, elementStyles, elements, onChange]);
+    setElementStyles(prev => ({
+      ...prev,
+      [id]: { bounds, style: prev[id]?.style ?? elements.find(e => e.id === id)!.style },
+    }));
+  }, [elements]);
 
   const handleStyleChange = useCallback((id: string, style: TextStyle) => {
-    const current = elementStyles[id];
-    const el = elements.find(e => e.id === id);
-    const newStyles: Record<string, SavedElementState> = {
-      ...elementStyles,
-      [id]: { style, bounds: current?.bounds ?? el!.bounds },
-    };
-    onChange({ ...kp, elementStyles: newStyles });
-  }, [kp, elementStyles, elements, onChange]);
+    setElementStyles(prev => ({
+      ...prev,
+      [id]: { style, bounds: prev[id]?.bounds ?? elements.find(e => e.id === id)!.bounds },
+    }));
+  }, [elements]);
 
   const selectedElement = selectedId ? elements.find(e => e.id === selectedId) ?? null : null;
+
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0A0F1E' }}>
+      {/* Formatting toolbar */}
       <div style={{
         borderBottom: '1px solid rgba(255,255,255,0.06)',
         background: 'rgba(255,255,255,0.02)',
         flexShrink: 0,
       }}>
-        <FormattingToolbar element={selectedElement} onStyleChange={handleStyleChange} />
+        <FormattingToolbar
+          element={selectedElement}
+          onStyleChange={handleStyleChange}
+        />
       </div>
 
+      {/* Pages container */}
       <div
         ref={containerRef}
         onClick={() => setSelectedId(null)}
@@ -80,6 +80,7 @@ export function PreviewPanel({ kp, onChange, previewRef }: Props) {
           gap: PAGE_GAP,
         }}
       >
+        {/* The actual preview div for PDF export */}
         <div ref={previewRef} style={{ display: 'flex', flexDirection: 'column', gap: 0, alignItems: 'center' }}>
           {pageNumbers.map(pageIndex => {
             const pageElements = elements.filter(e => e.pageIndex === pageIndex);
@@ -104,14 +105,17 @@ export function PreviewPanel({ kp, onChange, previewRef }: Props) {
                   overflow: 'hidden',
                 }}
               >
-                {/* Титульная страница — зелёный градиент */}
+                {/* Page background for title/calc */}
                 {isTitle && (
                   <div style={{
                     position: 'absolute', inset: 0,
-                    background: 'linear-gradient(160deg, #0a2e1a 0%, #14532d 40%, #0a2e1a 100%)',
+                    /* --- СТАРЫЙ ЗЕЛЕНЫЙ ЦВЕТ --- */
+                    /* background: 'linear-gradient(160deg, #0a2e1a 0%, #14532d 40%, #0a2e1a 100%)', */
+                    
+                    /* +++ НОВЫЙ ТЕМНО-СИНИЙ ЦВЕТ +++ */
+                    background: 'linear-gradient(160deg, #0d1a3a 0%, #1a2f5f 40%, #0d1a3a 100%)',
                   }} />
                 )}
-                {/* Страница расчёта — белая */}
                 {isCalc && (
                   <div style={{
                     position: 'absolute', inset: 0,
@@ -119,32 +123,42 @@ export function PreviewPanel({ kp, onChange, previewRef }: Props) {
                   }} />
                 )}
 
-                {/* Номер страницы */}
+                {/* Page number indicator */}
                 <div style={{
                   position: 'absolute', bottom: 14, right: 20,
                   fontSize: 10, color: isTitle ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
-                  zIndex: 0, fontFamily: 'Inter, sans-serif',
+                  zIndex: 0,
+                  fontFamily: 'Inter, sans-serif',
                 }}>
                   {pageIndex + 1}
                 </div>
 
-                {/* Зелёная декоративная линия на титуле */}
+                {/* Gold decorative line on title page */}
                 {isTitle && (
                   <div style={{
                     position: 'absolute', left: 48, top: 72, width: 60, height: 4,
-                    background: 'linear-gradient(90deg, #16a34a, #4ade80)',
+                    /* --- СТАРЫЙ ЗЕЛЕНЫЙ ЦВЕТ --- */
+                    /* background: 'linear-gradient(90deg, #16a34a, #4ade80)', */
+                    
+                    /* +++ НОВЫЙ ЗОЛОТОЙ ЦВЕТ +++ */
+                    background: 'linear-gradient(90deg, #C9A84C, #F0C85A)',
                     borderRadius: 2,
                   }} />
                 )}
 
-                {/* Зелёная полоса слева на слайдах */}
+                {/* Gold accent bar for slide pages */}
                 {!isTitle && !isCalc && (
                   <div style={{
                     position: 'absolute', left: 0, top: 0, width: 6, height: '100%',
-                    background: 'linear-gradient(180deg, #16a34a 0%, #4ade80 50%, #16a34a 100%)',
+                    /* --- СТАРЫЙ ЗЕЛЕНЫЙ ЦВЕТ --- */
+                    /* background: 'linear-gradient(180deg, #16a34a 0%, #4ade80 50%, #16a34a 100%)', */
+                    
+                    /* +++ НОВЫЙ ЗОЛОТОЙ ЦВЕТ +++ */
+                    background: 'linear-gradient(180deg, #C9A84C 0%, #F0C85A 50%, #C9A84C 100%)',
                   }} />
                 )}
 
+                {/* Elements */}
                 {pageElements.map(element => (
                   <DraggableElement
                     key={element.id}
@@ -157,6 +171,7 @@ export function PreviewPanel({ kp, onChange, previewRef }: Props) {
                   />
                 ))}
 
+                {/* Empty page hint */}
                 {pageElements.length === 0 && (
                   <div style={{
                     position: 'absolute', inset: 0,
