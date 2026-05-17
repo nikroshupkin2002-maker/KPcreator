@@ -300,7 +300,7 @@ export function CreateKPPage() {
             </span>
           </div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <PreviewPanel kp={kp} previewRef={previewRef} />
+            <PreviewPanel kp={kp} onChange={handleChange} previewRef={previewRef} />
           </div>
         </div>
       </div>
