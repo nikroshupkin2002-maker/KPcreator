@@ -60,213 +60,110 @@ export function CreateKPPage() {
   setIsExporting(true);
 
   try {
-    const { default: html2canvas } = await import('html2canvas');
-    const { default: jsPDF } = await import('jspdf');
-
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'px',
-      format: [A4_WIDTH, A4_HEIGHT],
-      compress: true,
-    });
-
-    const totalPages = getTotalPages(kp);
     const elementStyles = kp.elementStyles ?? {};
-    const { generatePreviewElements } = await import('../utils/layoutUtils');
+    const { generatePreviewElements, getTotalPages } = await import('../utils/layoutUtils');
     const elements = generatePreviewElements(kp, elementStyles);
+    const totalPages = getTotalPages(kp);
+
+    // Собираем HTML всех страниц
+    let pagesHtml = '';
 
     for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
       const pageElements = elements.filter(e => e.pageIndex === pageIndex);
       const isTitle = pageIndex === 0;
       const isCalc = pageIndex === totalPages - 1;
 
-      // Создаём контейнер страницы прямо в body, но вне экрана
-      const container = document.createElement('div');
-      container.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: ${A4_WIDTH}px;
-        height: ${A4_HEIGHT}px;
-        overflow: hidden;
-        background: #ffffff;
-        pointer-events: none;
-        z-index: -9999;
-        visibility: hidden;
-      `;
+      let bgStyle = 'background:#ffffff;';
+      if (isTitle) bgStyle = 'background:linear-gradient(160deg,#0a2e1a 0%,#14532d 40%,#0a2e1a 100%);';
+      else if (isCalc) bgStyle = 'background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%);';
 
-      // Фон страницы
-      const bg = document.createElement('div');
-      bg.style.cssText = `position:absolute;inset:0;`;
+      let innerHtml = '';
+
       if (isTitle) {
-        bg.style.background = 'linear-gradient(160deg, #0a2e1a 0%, #14532d 40%, #0a2e1a 100%)';
-      } else if (isCalc) {
-        bg.style.background = 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)';
-      } else {
-        bg.style.background = '#ffffff';
+        innerHtml += `<div style="position:absolute;left:48px;top:72px;width:60px;height:4px;background:linear-gradient(90deg,#16a34a,#4ade80);border-radius:2px;"></div>`;
       }
-      container.appendChild(bg);
-
-      // Зелёная линия на титуле
-      if (isTitle) {
-        const line = document.createElement('div');
-        line.style.cssText = `
-          position:absolute; left:48px; top:72px;
-          width:60px; height:4px;
-          background: linear-gradient(90deg, #16a34a, #4ade80);
-          border-radius:2px;
-        `;
-        container.appendChild(line);
-      }
-
-      // Зелёная полоса слева на слайдах
       if (!isTitle && !isCalc) {
-        const bar = document.createElement('div');
-        bar.style.cssText = `
-          position:absolute; left:0; top:0;
-          width:6px; height:100%;
-          background: linear-gradient(180deg, #16a34a 0%, #4ade80 50%, #16a34a 100%);
-        `;
-        container.appendChild(bar);
+        innerHtml += `<div style="position:absolute;left:0;top:0;width:6px;height:100%;background:linear-gradient(180deg,#16a34a 0%,#4ade80 50%,#16a34a 100%);"></div>`;
       }
 
-      // Номер страницы
-      const pageNum = document.createElement('div');
-      pageNum.style.cssText = `
-        position:absolute; bottom:14px; right:20px;
-        font-size:10px; font-family:Inter,sans-serif;
-        color:${isTitle ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'};
-      `;
-      pageNum.textContent = String(pageIndex + 1);
-      container.appendChild(pageNum);
-
-      // Элементы страницы
-      const imgPromises: Promise<void>[] = [];
+      innerHtml += `<div style="position:absolute;bottom:14px;right:20px;font-size:10px;font-family:Inter,sans-serif;color:${isTitle ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)'};">${pageIndex + 1}</div>`;
 
       for (const element of pageElements) {
         const { bounds, style } = element;
-        const el = document.createElement('div');
-        el.style.cssText = `
-          position:absolute;
-          left:${bounds.x}px;
-          top:${bounds.y}px;
-          width:${bounds.width}px;
-          height:${bounds.height}px;
-          overflow:hidden;
-          box-sizing:border-box;
-        `;
+        const base = `position:absolute;left:${bounds.x}px;top:${bounds.y}px;width:${bounds.width}px;height:${bounds.height}px;overflow:hidden;box-sizing:border-box;`;
 
         if (element.type === 'image' && element.imageUrl) {
-          const img = document.createElement('img');
-          img.src = element.imageUrl;
-          img.style.cssText = `
-            width:100%; height:100%;
-            object-fit:contain; display:block; border-radius:4px;
-          `;
-          // Ждём загрузки картинки
-          const p = new Promise<void>((resolve) => {
-            if (img.complete) {
-              resolve();
-            } else {
-              img.onload = () => resolve();
-              img.onerror = () => resolve(); // не блокируем если ошибка
-            }
-          });
-          imgPromises.push(p);
-          el.appendChild(img);
-
+          innerHtml += `<div style="${base}"><img src="${element.imageUrl}" style="width:100%;height:100%;object-fit:contain;display:block;border-radius:4px;" /></div>`;
         } else if (element.type === 'table' && element.tableData) {
           const { headers, cells, numColumns, numRows } = element.tableData;
-          const table = document.createElement('table');
-          table.style.cssText = `
-            width:100%; border-collapse:collapse;
-            font-size:${style.fontSize}px;
-            font-family:${style.fontFamily},sans-serif;
-          `;
-          const thead = document.createElement('thead');
-          const headerRow = document.createElement('tr');
-          headers.forEach((h) => {
-            const th = document.createElement('th');
-            th.style.cssText = `
-              padding:8px 10px; text-align:left;
-              width:${100 / numColumns}%;
-              background:#14532d; color:#ffffff;
-              font-weight:700;
-              border:1px solid rgba(22,163,74,0.4);
-              font-size:${style.fontSize}px;
-            `;
-            th.textContent = h || '';
-            headerRow.appendChild(th);
+          const colW = `${100 / numColumns}%`;
+          let tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:${style.fontSize}px;font-family:${style.fontFamily},sans-serif;">`;
+          tableHtml += `<thead><tr>`;
+          headers.forEach(h => {
+            tableHtml += `<th style="padding:8px 10px;text-align:left;width:${colW};background:#14532d;color:#ffffff;font-weight:700;border:1px solid rgba(22,163,74,0.4);font-size:${style.fontSize}px;">${h || ''}</th>`;
           });
-          thead.appendChild(headerRow);
-          table.appendChild(thead);
-
-          const tbody = document.createElement('tbody');
+          tableHtml += `</tr></thead><tbody>`;
           for (let ri = 0; ri < numRows; ri++) {
-            const row = document.createElement('tr');
-            row.style.background = ri % 2 === 0 ? '#ffffff' : '#f0fdf4';
+            const rowBg = ri % 2 === 0 ? '#ffffff' : '#f0fdf4';
+            tableHtml += `<tr style="background:${rowBg};">`;
             for (let ci = 0; ci < numColumns; ci++) {
-              const td = document.createElement('td');
-              td.style.cssText = `
-                padding:7px 10px;
-                border:1px solid rgba(0,0,0,0.1);
-                color:#1e293b;
-                font-size:${style.fontSize}px;
-              `;
-              td.textContent = cells[ri]?.[ci] || '';
-              row.appendChild(td);
+              tableHtml += `<td style="padding:7px 10px;border:1px solid rgba(0,0,0,0.1);color:#1e293b;font-size:${style.fontSize}px;">${cells[ri]?.[ci] || ''}</td>`;
             }
-            tbody.appendChild(row);
+            tableHtml += `</tr>`;
           }
-          table.appendChild(tbody);
-          el.appendChild(table);
-
+          tableHtml += `</tbody></table>`;
+          innerHtml += `<div style="${base}">${tableHtml}</div>`;
         } else {
-          // Текст
-          el.style.fontSize = `${style.fontSize}px`;
-          el.style.fontWeight = String(style.fontWeight);
-          el.style.fontFamily = `${style.fontFamily}, sans-serif`;
-          el.style.color = isTitle ? '#ffffff' : '#1e293b';
-          el.style.lineHeight = '1.5';
-          el.style.wordBreak = 'break-word';
-          el.textContent = element.content;
+          const textColor = isTitle ? '#ffffff' : '#1e293b';
+          innerHtml += `<div style="${base}font-size:${style.fontSize}px;font-weight:${style.fontWeight};font-family:${style.fontFamily},sans-serif;color:${textColor};line-height:1.5;word-break:break-word;">${element.content}</div>`;
         }
-
-        container.appendChild(el);
       }
 
-      document.body.appendChild(container);
-
-      // Ждём загрузки всех картинок на странице
-      await Promise.all(imgPromises);
-
-      // Делаем видимым только на момент снятия скриншота
-      container.style.visibility = 'visible';
-
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        width: A4_WIDTH,
-        height: A4_HEIGHT,
-        windowWidth: A4_WIDTH,
-        windowHeight: A4_HEIGHT,
-        logging: false,
-        backgroundColor: '#ffffff',
-        x: 0,
-        y: 0,
-      });
-
-      document.body.removeChild(container);
-
-      if (pageIndex > 0) pdf.addPage();
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      pdf.addImage(imgData, 'JPEG', 0, 0, A4_WIDTH, A4_HEIGHT);
+      pagesHtml += `
+        <div class="page" style="width:${A4_WIDTH}px;height:${A4_HEIGHT}px;position:relative;overflow:hidden;${bgStyle}margin:0;padding:0;page-break-after:always;">
+          ${innerHtml}
+        </div>`;
     }
 
-    const fileName = `${kp.name || 'КП'}_${new Date().toLocaleDateString('ru-RU').replace(/\./g, '-')}.pdf`;
-    pdf.save(fileName);
-    toast.success('PDF сохранён');
+    const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: Inter, sans-serif; }
+    @page { size: ${A4_WIDTH}px ${A4_HEIGHT}px; margin: 0; }
+    @media print {
+      html, body { width:${A4_WIDTH}px; }
+      .page { page-break-after: always; page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>${pagesHtml}</body>
+</html>`;
+
+    // Открываем в новом окне и вызываем печать в PDF
+    const printWindow = window.open('', '_blank', `width=${A4_WIDTH},height=${A4_HEIGHT}`);
+    if (!printWindow) {
+      toast.error('Браузер заблокировал всплывающее окно. Разрешите popup для этого сайта.');
+      setIsExporting(false);
+      return;
+    }
+
+    printWindow.document.write(fullHtml);
+    printWindow.document.close();
+
+    // Ждём загрузки шрифтов и картинок
+    await new Promise<void>(resolve => {
+      printWindow.onload = () => resolve();
+      setTimeout(resolve, 2000); // fallback если onload не сработал
+    });
+
+    printWindow.focus();
+    printWindow.print();
+
+    toast.success('Откроется диалог печати — выбери "Сохранить как PDF"');
 
   } catch (err) {
     console.error('PDF export error:', err);
